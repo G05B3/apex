@@ -13,13 +13,15 @@ The tool also generates an intermediate representation of the architecture throu
 # Build
 To build the tool, just run the following commands:
 ```
-$ git clone https://github.com/G05B3/apex/tree/main
-$ cd apex
+git clone https://github.com/G05B3/apex/tree/main
+cd apex
 make
 ```
 # Run
 To run the tool, you can run either:
-$ python3 apex.py
+```
+python3 apex.py
+```
 or
 ```
 python3 pe-creator.py
