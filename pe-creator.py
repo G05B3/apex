@@ -126,9 +126,12 @@ class PEGraphicsView(QGraphicsView):
         self.connections.append([component_1.data(0), component_2.data(0)])
         
     def mousePressEvent(self, event):
-        """ Handle mouse press to start drawing connections. """
-        if event.button() == Qt.MouseButton.LeftButton:
-            # Get the item clicked at the mouse position
+        """ Handle mouse press for panning and selecting components for connections. """
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)  # Enable panning
+            self.drag_start_position = event.pos()  # Store the starting position for panning
+        elif event.button() == Qt.MouseButton.LeftButton:
+            # Handle component selection for connections
             item = self.itemAt(event.pos())
             if item and item.data(0) is not None:
                 if self.selected_component_1 is None:
@@ -141,12 +144,24 @@ class PEGraphicsView(QGraphicsView):
                     # Reset selection after creating the connection
                     self.selected_component_1 = None
                     self.selected_component_2 = None
+        super().mousePressEvent(event)  # Ensure base class functionality is called
 
     def mouseReleaseEvent(self, event):
-        """ Handle mouse release to finalize drawing connections. """
-        if event.button() == Qt.MouseButton.LeftButton:
-            # You can leave this empty for now as mousePressEvent will handle the connection logic.
-            pass
+        """ Handle mouse release to stop panning or finalize connection selection. """
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self.setDragMode(QGraphicsView.DragMode.NoDrag)  # Disable panning after middle button release
+        super().mouseReleaseEvent(event)  # Ensure base class functionality is called
+
+    def wheelEvent(self, event):
+        """ Handle zooming with the mouse wheel. """
+        zoom_factor = 1.15  # Define the zoom factor
+
+        # If the wheel is scrolled upwards (zoom in)
+        if event.angleDelta().y() > 0:
+            self.scale(zoom_factor, zoom_factor)
+        # If the wheel is scrolled downwards (zoom out)
+        else:
+            self.scale(1 / zoom_factor, 1 / zoom_factor)
 
     def get_placed_components(self):
         """ Return the dictionary of placed components. """
