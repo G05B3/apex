@@ -1,2 +1,2 @@
 all:
-	gcc *.c -o apex_vgen
+	gcc src/*.c -o apex_vgen
