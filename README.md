@@ -11,8 +11,10 @@ A tool that automatically generates the verilog code for the desired Processing 
 The tool also generates an intermediate representation of the architecture through a .json file.
 
 # Build
-To build the tool, just run the following command:
+To build the tool, just run the following commands:
 ```
+git clone https://github.com/G05B3/apex/tree/main
+cd apex
 make
 ```
 # Run
