@@ -12,11 +12,16 @@ The tool also generates an intermediate representation of the architecture throu
 
 # Build
 To build the tool, just run the following command:
-> make
-
+```
+make
+```
 # Run
 To run the tool, you can run either:
-> python3 apex.py
+```
+python3 apex.py
+```
 or
-> python3 pe-creator.py
-> ./apex_vgen <name of the json file>
+```
+python3 pe-creator.py
+./apex_vgen <name of the json file>
+```
