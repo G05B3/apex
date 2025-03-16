@@ -1,6 +1,7 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QHBoxLayout, QGraphicsScene, QGraphicsView, QGraphicsPixmapItem, QGraphicsLineItem, QLineEdit, QPushButton
-from PyQt6.QtGui import QPixmap, QDrag, QMouseEvent, QPen
+from PyQt6.QtWidgets import QGraphicsLineItem, QGraphicsPolygonItem
+from PyQt6.QtGui import QPixmap, QDrag, QMouseEvent, QPen, QPolygonF
 from PyQt6.QtCore import Qt, QMimeData, QPointF
 
 class DraggableLabel(QLabel):
@@ -37,6 +38,7 @@ class PEGraphicsView(QGraphicsView):
         self.connections = []  # Store connections
         self.selected_component_1 = None
         self.selected_component_2 = None
+        self.scaling = {"input": (50, 50), "output": (50, 50), "Register": (90, 30), "MUX": (100, 25), "FU": (100, 50)}
 
     def dragEnterEvent(self, event):
         """ Allow drag if it's a known component. """
@@ -73,7 +75,8 @@ class PEGraphicsView(QGraphicsView):
                 self.placed_components["fus"].append(unique_name)
 
             # Create and place the component on the canvas
-            item = QGraphicsPixmapItem(QPixmap(self.component_images[component_name]).scaled(50, 50))
+            x, y = self.scaling[component_name]
+            item = QGraphicsPixmapItem(QPixmap(self.component_images[component_name]).scaled(x, y))
             item.setPos(scene_pos)
             item.setData(0, unique_name)  # Store the component's unique name
             self.scene().addItem(item)
@@ -85,14 +88,40 @@ class PEGraphicsView(QGraphicsView):
             self.selected_component_2 = None
 
     def create_connection(self, component_1, component_2):
-        """ Create a line connection between two components. """
-        start_point = component_1.scenePos() + QPointF(25, 25)  # Center of the first component
-        end_point = component_2.scenePos() + QPointF(25, 25)  # Center of the second component
+        import math
+        """ Create a connection line with an arrowhead between two components. """
+        start_point = component_1.scenePos() + QPointF(25, 25)  # Center of first component
+        end_point = component_2.scenePos() + QPointF(10, 10)  # Center of second component
 
+        # Draw the connection line
         line = QGraphicsLineItem(start_point.x(), start_point.y(), end_point.x(), end_point.y())
-        pen = QPen(Qt.GlobalColor.black)  # Set line color
+        pen = QPen(Qt.GlobalColor.black)
+        pen.setWidth(2)  # Make the line thicker
         line.setPen(pen)
-        self.scene().addItem(line)  # Add the line to the scene
+        self.scene().addItem(line)
+
+        # Compute arrowhead points using trigonometry
+        arrow_size = 10
+        dx = end_point.x() - start_point.x()
+        dy = end_point.y() - start_point.y()
+        angle = math.atan2(dy, dx)  # Compute angle of the line
+
+        # Compute arrowhead base points using rotation
+        arrow_p1 = QPointF(
+            end_point.x() - arrow_size * math.cos(angle - math.pi / 6),
+            end_point.y() - arrow_size * math.sin(angle - math.pi / 6)
+        )
+        arrow_p2 = QPointF(
+            end_point.x() - arrow_size * math.cos(angle + math.pi / 6),
+            end_point.y() - arrow_size * math.sin(angle + math.pi / 6)
+        )
+
+        # Create arrowhead polygon
+        arrow_head = QPolygonF([end_point, arrow_p1, arrow_p2])
+        arrow_item = QGraphicsPolygonItem(arrow_head)
+        arrow_item.setBrush(Qt.GlobalColor.black)  # Fill arrowhead
+        self.scene().addItem(arrow_item)
+
         print(f"Connection created from {component_1.data(0)} to {component_2.data(0)}")
         self.connections.append([component_1.data(0), component_2.data(0)])
         
@@ -101,7 +130,7 @@ class PEGraphicsView(QGraphicsView):
         if event.button() == Qt.MouseButton.LeftButton:
             # Get the item clicked at the mouse position
             item = self.itemAt(event.pos())
-            if item:
+            if item and item.data(0) is not None:
                 if self.selected_component_1 is None:
                     self.selected_component_1 = item
                     print(f"Selected first component: {item.data(0)}")
