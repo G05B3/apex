@@ -1,5 +1,5 @@
 # APEX
-An Automated Processing Element Creator
+## An Automated Processing Element Creator
 
 A tool that automatically generates the verilog code for the desired Processing Element (PE) architecture. Includes a graphical user interface where users can instantiate several basic components and connect them, in an intuitive manner. The available components are:
 - 32 bit Inputs
