@@ -1,14 +1,14 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QHBoxLayout, QGraphicsScene, QGraphicsView, QGraphicsPixmapItem, QGraphicsLineItem, QLineEdit, QPushButton
 from PyQt6.QtWidgets import QGraphicsLineItem, QGraphicsPolygonItem
-from PyQt6.QtGui import QPixmap, QDrag, QMouseEvent, QPen, QPolygonF
+from PyQt6.QtGui import QPixmap, QDrag, QMouseEvent, QPen, QPolygonF, QPainterPath
 from PyQt6.QtCore import Qt, QMimeData, QPointF
 
 class DraggableLabel(QLabel):
     """ A label that can be dragged onto the canvas. """
-    def __init__(self, image_path, component_name):
+    def __init__(self, image_path, component_name, scaling=(60, 60)):
         super().__init__()
-        self.setPixmap(QPixmap(image_path).scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio))
+        self.setPixmap(QPixmap(image_path).scaled(scaling[0], scaling[1], Qt.AspectRatioMode.KeepAspectRatio))
         self.component_name = component_name
 
     def mousePressEvent(self, event: QMouseEvent):
@@ -20,7 +20,7 @@ class DraggableLabel(QLabel):
             drag.setMimeData(mime_data)
             drag.setHotSpot(event.pos())  # Set drag hotspot to current position.
             drag.setPixmap(self.pixmap())  # Set the pixmap of the drag.
-            result = drag.exec(Qt.DropAction.CopyAction)  # Use CopyAction instead of MoveAction.
+            drag.exec(Qt.DropAction.CopyAction)  # Use CopyAction instead of MoveAction.
 
 class PEGraphicsView(QGraphicsView):
     """ Custom QGraphicsView to accept drops and handle connections. """
@@ -87,26 +87,49 @@ class PEGraphicsView(QGraphicsView):
             self.selected_component_1 = None
             self.selected_component_2 = None
 
+    def get_component_center(self, component):
+        """Calculate the center point of a component."""
+        bounding_rect = component.boundingRect()
+        center_x = component.scenePos().x() + bounding_rect.width() / 2
+        center_y = component.scenePos().y() + bounding_rect.height() / 2
+        return QPointF(center_x, center_y)
+    
     def create_connection(self, component_1, component_2):
-        import math
-        """ Create a connection line with an arrowhead between two components. """
-        start_point = component_1.scenePos() + QPointF(25, 25)  # Center of first component
-        end_point = component_2.scenePos() + QPointF(10, 10)  # Center of second component
+        """Create a right-angled connection with an arrowhead between two components."""
+        start_center = component_1.scenePos() + QPointF(component_1.boundingRect().width() / 2,
+                                                        component_1.boundingRect().height() / 2)
+        end_center = component_2.scenePos() + QPointF(component_2.boundingRect().width() / 2,
+                                                    component_2.boundingRect().height() / 2)
 
-        # Draw the connection line
-        line = QGraphicsLineItem(start_point.x(), start_point.y(), end_point.x(), end_point.y())
+        # Create a path from start to end with horizontal and vertical segments
+        path = QPainterPath(start_center)
+        mid_point = QPointF(end_center.x(), start_center.y())
+        path.lineTo(mid_point)
+        path.lineTo(end_center)
+
+        # Draw the path
         pen = QPen(Qt.GlobalColor.black)
-        pen.setWidth(2)  # Make the line thicker
-        line.setPen(pen)
-        self.scene().addItem(line)
+        pen.setWidth(2)
+        line_item = self.scene().addPath(path, pen)
 
-        # Compute arrowhead points using trigonometry
+        # Add arrowhead
+        self.add_arrowhead(path)
+
+        print(f"Connection created from {component_1.data(0)} to {component_2.data(0)}")
+        self.connections.append([component_1.data(0), component_2.data(0)])
+
+    def add_arrowhead(self, path):
+        import math
+        end_point = path.currentPosition()  # QPointF, use methods x() and y()
+        element_count = path.elementCount()
+        if element_count < 2:
+            return  # Not enough points to determine direction
+        previous_point = path.elementAt(element_count - 2)  # QPainterPath.Element with attributes x and y
+
+        # Correct: use end_point.y() - previous_point.y (without parentheses on previous_point.y)
+        angle = math.atan2(end_point.y() - previous_point.y, end_point.x() - previous_point.x)
+
         arrow_size = 10
-        dx = end_point.x() - start_point.x()
-        dy = end_point.y() - start_point.y()
-        angle = math.atan2(dy, dx)  # Compute angle of the line
-
-        # Compute arrowhead base points using rotation
         arrow_p1 = QPointF(
             end_point.x() - arrow_size * math.cos(angle - math.pi / 6),
             end_point.y() - arrow_size * math.sin(angle - math.pi / 6)
@@ -116,14 +139,11 @@ class PEGraphicsView(QGraphicsView):
             end_point.y() - arrow_size * math.sin(angle + math.pi / 6)
         )
 
-        # Create arrowhead polygon
         arrow_head = QPolygonF([end_point, arrow_p1, arrow_p2])
         arrow_item = QGraphicsPolygonItem(arrow_head)
-        arrow_item.setBrush(Qt.GlobalColor.black)  # Fill arrowhead
+        arrow_item.setBrush(Qt.GlobalColor.black)
         self.scene().addItem(arrow_item)
 
-        print(f"Connection created from {component_1.data(0)} to {component_2.data(0)}")
-        self.connections.append([component_1.data(0), component_2.data(0)])
         
     def mousePressEvent(self, event):
         """ Handle mouse press for panning and selecting components for connections. """
@@ -177,7 +197,7 @@ class PEEditor(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("PE Creator")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 1000, 800)
 
         # Main widget and layout
         main_widget = QWidget()
@@ -200,7 +220,7 @@ class PEEditor(QMainWindow):
         toolbar = QHBoxLayout()
         toolbar.addWidget(QLabel("Components:"))
 
-        # Dictionary of components
+        # Dictionary of components (images)
         self.components = {
             "MUX": "img/mux.png",
             "FU": "img/fu.png",
@@ -209,9 +229,34 @@ class PEEditor(QMainWindow):
             "output": "img/output.png"
         }
 
+        # Define toolbar scalings; if you want every component to appear the same, use the same value,
+        # otherwise adjust manually.
+        toolbar_scaling = {
+            "MUX": (90, 90),
+            "FU": (70, 70),
+            "Register": (90, 90),
+            "input": (50, 50),
+            "output": (50, 50)
+        }
+
         for name, image in self.components.items():
-            btn = DraggableLabel(image, name)
-            toolbar.addWidget(btn)
+            # Create a widget to hold both the image and its label
+            comp_widget = QWidget()
+            comp_layout = QVBoxLayout(comp_widget)
+            comp_layout.setContentsMargins(0, 0, 0, 0)  # Remove extra margins if needed
+
+            # Use the scaling for this component (or a default if not provided)
+            scaling = toolbar_scaling.get(name, (60, 60))
+            btn = DraggableLabel(image, name, scaling=scaling)
+            comp_layout.addWidget(btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
+            # Create and add the label
+            text_label = QLabel(name)
+            text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            comp_layout.addWidget(text_label)
+
+            # Add the composite widget to the toolbar
+            toolbar.addWidget(comp_widget)
 
         main_layout.addLayout(toolbar)
 
